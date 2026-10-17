@@ -1,7 +1,7 @@
 # ---------------------------------------------------------
     # BỔ SUNG: VINTAGE RADIO PLAYER TRONG SIDEBAR
     # ---------------------------------------------------------
-    st.markdown("---")
+
     st.markdown("### 📻 Vintage Autumn Radio")
     
     # Link nhạc Jazz Vintage Mùa Thu (File MP3 trực tuyến)
