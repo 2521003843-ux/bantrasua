@@ -394,3 +394,70 @@ elif menu_choice == "🪑 Sơ Đồ & Quản Lý Bàn":
             st.session_state.table_status[sel_table] = new_stat
             safe_toast(f"Đã đổi {sel_table} thành '{new_stat}'!")
             safe_rerun()
+
+elif menu_choice == "📦 Quản Lý Kho Nguyên Liệu":
+    st.subheader("📦 Quản Lý Tồn Kho Nguyên Liệu")
+    df_inv = load_inventory()
+    if df_inv.empty:
+        st.info("Chưa có dữ liệu kho nguyên liệu.")
+    else:
+        low_stock = df_inv[df_inv["quantity"] <= df_inv["min_limit"]]
+        if not low_stock.empty:
+            st.error(f"🚨 CẢNH BÁO: Có {len(low_stock)} nguyên liệu cần nhập thêm ngay!")
+
+        st.dataframe(df_inv)
+
+        st.markdown("---")
+        st.markdown("### ✏️ Cập Nhật Kho Nguyên Liệu")
+        c_i1, c_i2, c_i3 = st.columns([2, 1, 1])
+        with c_i1:
+            item_to_update = st.selectbox("Chọn Nguyên Liệu:", df_inv["item_name"].tolist())
+        with c_i2:
+            row_item = df_inv[df_inv["item_name"] == item_to_update].iloc[0]
+            new_qty_val = st.number_input("Số Lượng Mới:", min_value=0.0, value=float(row_item["quantity"]), step=1.0)
+        with c_i3:
+            st.write("")
+            if st.button("💾 Lưu Kho"):
+                if update_inventory_item(int(row_item["id"]), new_qty_val):
+                    safe_toast("Đã cập nhật số lượng tồn kho!")
+                    safe_rerun()
+
+elif menu_choice == "🎟️ Mã Giảm Giá & Voucher":
+    st.subheader("🎟️ Danh Sách Mã Giảm Giá Đang Hoạt Động")
+    st.markdown("""
+        • **MINI10**: Giảm `10,000 VNĐ` cho đơn từ `30,000 VNĐ`  
+        • **MINI20**: Giảm `20,000 VNĐ` cho đơn từ `50,000 VNĐ`  
+        • **XINCHAO**: Giảm `15,000 VNĐ` cho mọi đơn hàng  
+        • **VIPCOFFEE**: Giảm `30,000 VNĐ` cho đơn từ `100,000 VNĐ`
+    """)
+
+elif menu_choice == "🎰 Vòng Quay May Mắn":
+    st.subheader("🎰 Vòng Quay Trúng Thưởng Voucher 100%")
+    prizes = [
+        ("Voucher Giảm 10.000 VNĐ", 10000), 
+        ("Voucher Giảm 15.000 VNĐ", 15000), 
+        ("Tặng 01 Shot Kem Muối", 8000), 
+        ("Chúc may mắn lần sau", 0)
+    ]
+    if st.button("🔄 THỰC HIỆN QUAY THƯỞNG"):
+        p_name, p_val = random.choice(prizes)
+        st.session_state.applied_discount = p_val
+        st.session_state.discount_reason = f"Vòng quay ({p_name})"
+        st.success(f"🎁 Bạn nhận được: **{p_name}**!")
+
+elif menu_choice == "👤 Tích Điểm Khách Hàng":
+    st.subheader("👤 Tra Cứu Điểm Tích Lũy Khách Hàng")
+    s_phone = st.text_input("🔍 Nhập SĐT Khách Hàng:")
+    if s_phone:
+        pts = get_pts(s_phone)
+        st.metric(f"Khách hàng ({s_phone})", f"{pts} Điểm")
+
+else:
+    st.subheader("📈 Báo Cáo Doanh Thu Bán Hàng")
+    df_ord = load_orders()
+    if df_ord.empty:
+        st.warning("Chưa có dữ liệu đơn hàng nào được ghi nhận.")
+    else:
+        tot_revenue = df_ord["final_amount"].sum()
+        st.metric("💰 Tổng Doanh Thu", f"{tot_revenue:,.0f} VNĐ")
+        st.dataframe(df_ord)
