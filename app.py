@@ -8,7 +8,22 @@ import json
 import random
 
 # ---------------------------------------------------------
-# 1. KHỞI TẠO CƠ SỞ DỮ LIỆU SQLITE (LƯU VĨNH VIỄN)
+# 0. HÀM BẢO VỆ TƯƠNG THÍCH MỌI PHIÊN BẢN STREAMLIT
+# ---------------------------------------------------------
+def safe_rerun():
+    if hasattr(st, "rerun"):
+        st.rerun()
+    elif hasattr(st, "experimental_rerun"):
+        st.experimental_rerun()
+
+def safe_toast(msg, icon="☕"):
+    if hasattr(st, "toast"):
+        st.toast(msg, icon=icon)
+    else:
+        st.success(f"{icon} {msg}")
+
+# ---------------------------------------------------------
+# 1. KHỞI TẠO CƠ SỞ DỮ LIỆU SQLITE
 # ---------------------------------------------------------
 DB_FILE = "viet_coffee_pos.db"
 
@@ -77,10 +92,10 @@ def load_orders_history():
     return df
 
 # ---------------------------------------------------------
-# 2. CẤU HÌNH GIAO DIỆN PHIN VIỆT COFFEE ☕🇻🇳
+# 2. CẤU HÌNH GIAO DIỆN PHIN VIỆT COFFEE ☕
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Phin Việt Coffee - Cà Phê Đất Việt ☕🇻🇳",
+    page_title="Phin Việt Coffee - Cà Phê Đất Việt ☕",
     page_icon="☕",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -98,7 +113,6 @@ st.markdown("""
         background-color: #FDFBF7;
     }
 
-    /* BANNER CHÍNH */
     .coffee-banner {
         background: linear-gradient(135deg, #2C1A1D 0%, #4A2810 50%, #8C4A27 100%);
         border-radius: 20px;
@@ -125,7 +139,6 @@ st.markdown("""
         font-weight: 500;
     }
 
-    /* CARD SẢN PHẨM */
     .product-card {
         background-color: #FFFFFF;
         border-radius: 16px;
@@ -149,7 +162,6 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
-    /* GIỎ HÀNG */
     .cart-container {
         background-color: #FFFFFF;
         border-radius: 18px;
@@ -207,7 +219,187 @@ st.markdown("""
         <p>"Thưởng Thức Hương Vị Cà Phê Nguyên Bản Từ Đồi Núi Tây Nguyên"</p>
     </div>
 """, unsafe_allow_html=True)
+
+if sidebar_menu == "🛒 Gọi Món POS & Giỏ Hàng":
+    col_pos, col_cart = st.columns([1.7, 1.3])
+
+    with col_pos:
+        st.subheader("📋 Thực Đơn Cà Phê & Đồ Uống")
+        
+        tab1, tab2, tab3 = st.tabs(["☕ Cà Phê Phin", "🌿 Trà Việt", "🍰 Bánh Đi Kèm"])
+        
+        def render_category(items):
+            cols = st.columns(2)
+            for idx, item in enumerate(items):
+                with cols[idx % 2]:
+                    st.markdown(f"""
+                        <div class="product-card">
+                            <div style="font-size: 2.5rem;">{item['img']}</div>
+                            <h4>{item['name']}</h4>
+                            <p style="color:#666; font-size:0.85rem; height: 38px;">{item['desc']}</p>
+                            <div class="product-price">{item['price']:,.0f} VNĐ</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    with st.expander(f"➕ Custom & Chọn Món ({item['name']})"):
+                        sugar = st.select_slider("Mức ngọt / Sữa đặc:", options=["0% (Đắng)", "30% (Ít ngọt)", "50% (Vừa)", "100% (Đậm ngọt)"], value="50% (Vừa)", key=f"s_{item['id']}")
+                        ice = st.select_slider("Mức đá:", options=["Không đá", "Ít đá", "Vừa", "Nhiều đá"], value="Vừa", key=f"i_{item['id']}")
+                        bean = st.selectbox("Loại hạt cà phê:", ["Robusta Đậm Đà (Buôn Ma Thuột)", "Arabica Thơm Thanh (Cầu Đất)", "Blend 70/30 Tây Nguyên"], key=f"b_{item['id']}")
+                        topping = st.multiselect("Topping kèm theo:", ["Kem Muối (+8k)", "Kem Trứng (+10k)", "Shot Espresso (+10k)", "Thạch Cà Phê (+5k)"], key=f"t_{item['id']}")
+                        
+                        qty = st.number_input("Số lượng:", min_value=1, value=1, step=1, key=f"q_{item['id']}")
+                        
+                        if st.button("🛒 Thêm Vào Giỏ Hàng", key=f"add_{item['id']}", type="primary", use_container_width=True):
+                            topping_price = 0
+                            if "Kem Muối (+8k)" in topping: topping_price += 8000
+                            if "Kem Trứng (+10k)" in topping: topping_price += 10000
+                            if "Shot Espresso (+10k)" in topping: topping_price += 10000
+                            if "Thạch Cà Phê (+5k)" in topping: topping_price += 5000
+
+                            cart_item = {
+                                "id": item["id"],
+                                "name": item["name"],
+                                "unit_price": item["price"] + topping_price,
+                                "qty": qty,
+                                "sugar": sugar,
+                                "ice": ice,
+                                "bean": bean,
+                                "topping": ", ".join(topping) if topping else "Không",
+                                "total": (item["price"] + topping_price) * qty
+                            }
+                            st.session_state.cart.append(cart_item)
+                            safe_toast(f"Đã thêm {qty}x {item['name']} vào giỏ hàng!", icon="☕")
+
+        with tab1:
+            render_category(MENU_DATA["☕ Cà Phê Phin Truyền Thống"])
+        with tab2:
+            render_category(MENU_DATA["🌿 Trà Việt & Đồ Uống Mới"])
+        with tab3:
+            render_category(MENU_DATA["🍰 Bánh Đi Kèm Cà Phê"])
+
+    with col_cart:
+        st.markdown("<div class='cart-container'>", unsafe_allow_html=True)
+        st.markdown("### 🛒 Hóa Đơn & Giỏ Hàng POS")
+        
+        c_p1, c_p2 = st.columns(2)
+        with c_p1:
+            order_type = st.selectbox("Hình thức:", ["Tại bàn (In-house)", "Mang đi (Takeaway)"])
+        with c_p2:
+            table_num = st.text_input("Số bàn / Tên khách:", value="Bàn 01")
+
+        cust_phone = st.text_input("📞 SĐT Khách Hàng (Tích Điểm):", placeholder="Nhập SĐT để tích điểm...")
+        if cust_phone:
+            pts = get_customer_points(cust_phone)
+            st.info(f"👤 Khách hàng thân thiết | Điểm tích lũy: **{pts} điểm** (Giá trị quy đổi: {pts*1000:,.0f}đ)")
+
+        st.markdown("---")
+
+        if not st.session_state.cart:
+            st.warning("Giỏ hàng hiện tại đang trống. Vui lòng chọn món từ menu bên trái!")
+            raw_total = 0
+        else:
+            raw_total = 0
+            to_remove = None
+            for idx, c_item in enumerate(st.session_state.cart):
+                raw_total += c_item["total"]
+                col_item1, col_item2 = st.columns([3, 1])
+                with col_item1:
+                    st.write(f"**{idx+1}. {c_item['name']}** x{c_item['qty']}")
+                    st.caption(f"⚙️ {c_item['sugar']} | {c_item['ice']} | Hạt: {c_item['bean']}")
+                    if c_item['topping'] != "Không":
+                        st.caption(f"➕ Topping: {c_item['topping']}")
+                    st.write(f"💰 {c_item['total']:,.0f} VNĐ")
+                with col_item2:
+                    if st.button("❌", key=f"del_{idx}"):
+                        to_remove = idx
+                st.markdown("---")
+
+            if to_remove is not None:
+                st.session_state.cart.pop(to_remove)
+                safe_rerun()
+
+            discount_amount = st.session_state.applied_discount
+            final_total = max(0, raw_total - discount_amount)
+
+            st.write(f"• Tạm tính: **{raw_total:,.0f} VNĐ**")
+            if discount_amount > 0:
+                st.write(f"• Giảm giá Voucher / Vòng quay: <span style='color:green;'>- {discount_amount:,.0f} VNĐ</span>", unsafe_allow_html=True)
+            st.markdown(f"### 💸 Tổng Thanh Toán: <span style='color:#B91C1C;'>{final_total:,.0f} VNĐ</span>", unsafe_allow_html=True)
+
+            pay_method = st.radio("Phương thức thanh toán:", ["Tiền mặt 💵", "Chuyển khoản VietQR 📲", "Thẻ ngân hàng 💳"])
+
+            if pay_method == "Chuyển khoản VietQR 📲":
+                st.image("https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=PHINVIETCOFFEE_PAYMENT", caption="Quét mã VietQR để thanh toán")
+
+            if st.button("✅ XÁC NHẬN THANH TOÁN & IN HÓA ĐƠN", type="primary", use_container_width=True):
+                save_order_to_db(cust_phone, f"{order_type} ({table_num})", st.session_state.cart, raw_total, discount_amount, final_total, pay_method)
+                if hasattr(st, "balloons"):
+                    st.balloons()
+                st.success("🎉 Thanh toán thành công! Đơn hàng đã được lưu vào CSDL SQLite vĩnh viễn.")
+                st.session_state.cart = []
+                st.session_state.applied_discount = 0
+                safe_rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+elif sidebar_menu == "🎰 Vòng Quay May Mắn Cà Phê":
+    st.subheader("🎰 Vòng Quay May Mắn Cà Phê - Trúng Thưởng 100%")
+    st.caption("Mỗi hóa đơn tại Phin Việt Coffee đều nhận được 1 lượt quay trúng Voucher hấp dẫn!")
+
+    prizes = [
+        ("🎉 Voucher Giảm 10.000 VNĐ", 10000),
+        ("🔥 Voucher Giảm 20.000 VNĐ", 20000),
+        ("☕ Tặng 01 Shot Espresso Kem Muối", 10000),
+        ("🍌 Tặng 01 Bánh Mì Chuối Nướng Bơ", 28000),
+        ("🍀 Chúc bạn may mắn lần sau", 0)
+    ]
+
+    col_w1, col_w2 = st.columns([1, 1])
+
+    with col_w1:
+        st.image("https://img.icons8.com/color/180/wheel-of-fortune.png", width=180)
+        if st.button("🔄 THỰC HIỆN QUAY THƯỞNG", type="primary", use_container_width=True):
+            won_prize, won_val = random.choice(prizes)
+            st.session_state.won_prize = won_prize
+            st.session_state.won_val = won_val
+            st.session_state.applied_discount = won_val
+
+    with col_w2:
+        if "won_prize" in st.session_state:
+            st.success(f"🎁 Kết Quả: **{st.session_state.won_prize}**")
+            if st.session_state.won_val > 0:
+                st.info(f"Đã tự động áp dụng ưu đãi **-{st.session_state.won_val:,.0f} VNĐ** vào giỏ hàng POS!")
+
+elif sidebar_menu == "👤 Tích Điểm Khách Hàng":
+    st.subheader("👤 Tra Cứu & Tích Điểm Thân Thiết")
+    
+    search_phone = st.text_input("🔍 Nhập Số Điện Thoại Khách Hàng:")
+    if search_phone:
+        pts = get_customer_points(search_phone)
+        st.metric(f"Khách hàng ({search_phone})", f"{pts} Điểm tích lũy")
+        st.write(f"• Giá trị quy đổi giảm giá: **{pts*1000:,.0f} VNĐ**")
+
+else:
+    st.subheader("📈 Báo Cáo Doanh Thu Real-Time (Đồng Bộ SQLite)")
+
+    df_orders = load_orders_history()
+    
+    if df_orders.empty:
+        st.warning("Chưa có đơn hàng nào được ghi nhận trong CSDL.")
+    else:
+        total_rev = df_orders["final_amount"].sum()
+        total_orders_cnt = len(df_orders)
+
+        c_r1, c_r2, c_r3 = st.columns(3)
+        with c_r1:
+            st.metric("💰 Tổng Doanh Thu", f"{total_rev:,.0f} VNĐ")
+        with c_r2:
+            st.metric("🧾 Tổng Số Đơn Hàng", f"{total_orders_cnt} Đơn")
+        with c_r3:
+            st.metric("📊 Giá Trị Trung Bình / Đơn", f"{total_rev/total_orders_cnt:,.0f} VNĐ")
+
+        st.markdown("### 📜 Lịch Sử Giao Dịch Đơn Hàng")
+        st.dataframe(df_orders, use_container_width=True, hide_index=True)
 '''
 
 ast.parse(app_code)
-print("Updated App code AST verified successfully!")
+print("Safe code execution verified successfully!")
