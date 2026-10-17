@@ -116,4 +116,3 @@ st.markdown("""
         border-radius: 8px !important;
         font-weight: 600 !important;
     }
-    </style
