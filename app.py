@@ -239,7 +239,7 @@ if "wheel_prize" not in st.session_state:
     st.session_state.wheel_prize = None
 
 # ---------------------------------------------------------
-# 5. DỮ LIỆU THỰC ĐƠN
+# 5. DỮ LIỆU THỰC ĐƠN & DANH SÁCH NHẠC VINTAGE
 # ---------------------------------------------------------
 DRINK_MENU = {
     "🍵 Trà Sữa Mùa Thu 🍁": {
@@ -368,6 +368,12 @@ PRIZES = [
     "🍀 Chúc bạn may mắn lần sau!"
 ]
 
+MUSIC_PLAYLIST = {
+    "🎷 Jazz Vintage Mùa Thu": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    "☕ Lofi Cafe Chill": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+    "🍁 Autumn Piano Melodies": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3"
+}
+
 # ---------------------------------------------------------
 # 6. SIDEBAR ĐIỀU HƯỚNG TỔNG HỢP
 # ---------------------------------------------------------
@@ -398,33 +404,14 @@ with st.sidebar:
     st.markdown("### 📈 Doanh Thu Ca")
     st.metric("Tổng doanh thu", f"{quick_rev:,} VNĐ")
 
-    # 📻 VINTAGE RADIO PLAYER IN SIDEBAR
+    # 📻 VINTAGE RADIO PLAYER IN SIDEBAR (CHUẨN STREAMLIT NATIVE)
     st.markdown("---")
-    st.markdown("### 📻 Vintage Autumn Radio")
-    vintage_music_url = "https://ia801503.us.archive.org/15/items/chill-lofi-song/Chill%20Lofi%20Song.mp3"
+    st.markdown("### 📻 Vintage Radio Player")
+    selected_music_name = st.selectbox("🎵 Chọn Giai Điệu:", list(MUSIC_PLAYLIST.keys()))
+    current_music_url = MUSIC_PLAYLIST[selected_music_name]
     
-    st.markdown(f"""
-        <div style="
-            background: linear-gradient(135deg, #FAF5E8 0%, #F3E8D5 100%);
-            border: 2px solid #D96B27;
-            border-radius: 12px;
-            padding: 12px;
-            text-align: center;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-            margin-bottom: 15px;
-        ">
-            <p style="margin: 0 0 8px 0; font-size: 0.9rem; color: #5C2C16; font-weight: bold;">
-                🎷 Autumn Vintage Lounge Radio
-            </p>
-            <audio controls loop style="width: 100%; height: 36px; border-radius: 6px;">
-                <source src="{vintage_music_url}" type="audio/mp3">
-                Trình duyệt không hỗ trợ audio.
-            </audio>
-            <p style="margin: 6px 0 0 0; font-size: 0.75rem; color: #8C5A3C; font-style: italic;">
-                🍁 Phát nhạc Jazz/Lo-Fi tạo không khí cho quán
-            </p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.caption("👇 **Nhấn nút ▶️ bên dưới để bật nhạc:**")
+    st.audio(current_music_url, format="audio/mp3")
 
 # ---------------------------------------------------------
 # 7. BANNER HERO TIÊU ĐỀ
