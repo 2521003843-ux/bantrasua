@@ -5,26 +5,33 @@ from datetime import datetime
 import json
 import random
 
-# ---------------------------------------------------------
+# =========================================================
 # 1. CẤU HÌNH TRANG (ĐẶT ĐẦU FILE BẮT BUỘC)
-# ---------------------------------------------------------
+# =========================================================
 st.set_page_config(
-    page_title="COFFEE MINI ☕",
+    page_title="COFFEE MINI - Super POS ☕ Pro",
     page_icon="☕",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ---------------------------------------------------------
-# 2. HÀM TƯƠNG THÍCH VÀ XỬ LÝ CSDL
-# ---------------------------------------------------------
+# =========================================================
+# 2. HÀM TƯƠNG THÍCH BẢO VỆ LỖI STREAMLIT
+# =========================================================
 def safe_rerun():
     if hasattr(st, "rerun"):
         st.rerun()
     elif hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
 
-DB_FILE = "coffee_mini_pos_clean.db"
+def safe_toast(msg):
+    if hasattr(st, "toast"):
+        st.toast(msg)
+    else:
+        st.success(msg)
+
+# Dùng tên Database mới để tránh vướng dữ liệu cũ
+DB_FILE = "coffee_mini_pos_v3.db"
 
 def init_db():
     try:
@@ -50,6 +57,49 @@ def init_db():
                 points INTEGER DEFAULT 0
             )
         """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS inventory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_name TEXT UNIQUE,
+                quantity REAL,
+                unit TEXT,
+                min_limit REAL
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS vouchers (
+                code TEXT PRIMARY KEY,
+                discount_value REAL,
+                min_order REAL
+            )
+        """)
+
+        # Khởi tạo kho mẫu
+        c.execute("SELECT COUNT(*) FROM inventory")
+        if c.fetchone()[0] == 0:
+            sample_inv = [
+                ("Hạt Cà Phê Robusta (Kg)", 15.0, "Kg", 3.0),
+                ("Hạt Cà Phê Arabica (Kg)", 8.0, "Kg", 2.0),
+                ("Sữa Đặc (Hộp 380g)", 50.0, "Hộp", 10.0),
+                ("Sữa Tươi Thanh Trùng (Lít)", 30.0, "Lít", 5.0),
+                ("Kem Béo Kem Muối (Lít)", 12.0, "Lít", 2.0),
+                ("Trà Oolong (Kg)", 5.0, "Kg", 1.0),
+                ("Đào Đóng Hộp (Hộp)", 20.0, "Hộp", 4.0),
+                ("Ly Giấy Coffee Mini", 500.0, "Ly", 50.0)
+            ]
+            c.executemany("INSERT INTO inventory (item_name, quantity, unit, min_limit) VALUES (?, ?, ?, ?)", sample_inv)
+
+        # Khởi tạo Voucher mẫu
+        c.execute("SELECT COUNT(*) FROM vouchers")
+        if c.fetchone()[0] == 0:
+            sample_vouchers = [
+                ("MINI10", 10000.0, 30000.0),
+                ("MINI20", 20000.0, 50000.0),
+                ("XINCHAO", 15000.0, 0.0),
+                ("VIPCOFFEE", 30000.0, 100000.0)
+            ]
+            c.executemany("INSERT INTO vouchers (code, discount_value, min_order) VALUES (?, ?, ?)", sample_vouchers)
+
         conn.commit()
         conn.close()
     except Exception as e:
@@ -75,13 +125,16 @@ def save_order(phone, order_type, items, total, discount, final, pay_method):
             if row:
                 c.execute("UPDATE customers SET points = points + ? WHERE phone = ?", (earned_pts, phone))
             else:
-                c.execute("INSERT INTO customers (phone, name, points) VALUES (?, 'Khách hàng', ?)", (phone, earned_pts))
-                
+                c.execute("INSERT INTO customers (phone, name, points) VALUES (?, 'Khách Hàng', ?)", (phone, earned_pts))
+
+        total_qty = sum(it.get('qty', 1) for it in items)
+        c.execute("UPDATE inventory SET quantity = MAX(0, quantity - ?) WHERE item_name LIKE '%Ly Giấy%'", (total_qty,))
+
         conn.commit()
         conn.close()
         return True
     except Exception as e:
-        st.error(f"Lỗi lưu đơn: {e}")
+        st.error(f"Lỗi lưu đơn hàng: {e}")
         return False
 
 def get_pts(phone):
@@ -99,23 +152,59 @@ def get_pts(phone):
 def load_orders():
     try:
         conn = sqlite3.connect(DB_FILE, timeout=10)
-        df = pd.read_sql("SELECT id, order_time, customer_phone, order_type, final_amount, payment_method FROM orders ORDER BY id DESC", conn)
+        df = pd.read_sql("SELECT id, order_time, customer_phone, order_type, total_amount, discount_amount, final_amount, payment_method FROM orders ORDER BY id DESC", conn)
         conn.close()
         return df
     except Exception:
         return pd.DataFrame()
 
-# ---------------------------------------------------------
-# 3. SESSION STATE
-# ---------------------------------------------------------
+def load_inventory():
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=10)
+        df = pd.read_sql("SELECT * FROM inventory", conn)
+        conn.close()
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+def update_inventory_item(item_id, new_qty):
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=10)
+        c = conn.cursor()
+        c.execute("UPDATE inventory SET quantity = ? WHERE id = ?", (new_qty, item_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+def check_voucher(code, order_total):
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=10)
+        c = conn.cursor()
+        c.execute("SELECT discount_value, min_order FROM vouchers WHERE code = ?", (code.strip().upper(),))
+        row = c.fetchone()
+        conn.close()
+        if row:
+            disc_val, min_ord = row
+            if order_total >= min_ord:
+                return True, disc_val, f"Áp dụng thành công mã {code.upper()}: -{disc_val:,.0f} VNĐ!"
+            else:
+                return False, 0, f"Mã {code.upper()} yêu cầu đơn hàng tối thiểu {min_ord:,.0f} VNĐ!"
+        else:
+            return False, 0, "Mã giảm giá không hợp lệ!"
+    except Exception:
+        return False, 0, "Lỗi kiểm tra mã giảm giá!"
+
 if "cart" not in st.session_state:
     st.session_state.cart = []
 if "applied_discount" not in st.session_state:
     st.session_state.applied_discount = 0
+if "discount_reason" not in st.session_state:
+    st.session_state.discount_reason = ""
+if "table_status" not in st.session_state:
+    st.session_state.table_status = {f"Bàn {i:02d}": "Trống 🟢" for i in range(1, 11)}
 
-# ---------------------------------------------------------
-# 4. DANH MỤC THỰC ĐƠN
-# ---------------------------------------------------------
 MENU_DATA = {
     "☕ Cà Phê Chữ Ký": [
         {"id": "CM01", "name": "Cà Phê Sữa Đá Phin Mini", "price": 29000, "img": "https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=400", "desc": "Robusta Buôn Ma Thuột đậm đà, vị đắng thơm lừng quyện sữa đặc."},
@@ -133,45 +222,57 @@ MENU_DATA = {
     ]
 }
 
-# ---------------------------------------------------------
-# 5. GIAO DIỆN CHÍNH
-# ---------------------------------------------------------
 with st.sidebar:
     st.title("☕ COFFEE MINI")
     st.caption("Góc Nhỏ Cà Phê & Niềm Vui Lớn")
     st.markdown("---")
-    menu_choice = st.radio("📌 Điều Hướng Chức Năng:", ["🛒 Gọi Món POS", "🎰 Vòng Quay May Mắn", "👤 Tích Điểm Khách Hàng", "📈 Báo Cáo Doanh Thu"])
+    
+    menu_choice = st.radio(
+        "📌 Menu Chức Năng:",
+        [
+            "🛒 Gọi Món POS & Giỏ Hàng",
+            "🪑 Sơ Đồ & Quản Lý Bàn",
+            "📦 Quản Lý Kho Nguyên Liệu",
+            "🎟️ Mã Giảm Giá & Voucher",
+            "🎰 Vòng Quay May Mắn",
+            "👤 Tích Điểm Khách Hàng",
+            "📈 Báo Cáo & Phân Tích Doanh Thu"
+        ]
+    )
 
-st.markdown("# ☕ COFFEE MINI - SMALL SIZE, BIG SMILE")
-st.caption("Ứng dụng quản lý bán hàng POS tối giản & hiệu quả")
+st.title("☕ COFFEE MINI - SUPER POS PRO")
+st.caption("Hệ Thống Bán Hàng & Quản Lý Quán Cà Phê Thông Minh")
 st.markdown("---")
 
-if menu_choice == "🛒 Gọi Món POS":
+if menu_choice == "🛒 Gọi Món POS & Giỏ Hàng":
     col_menu, col_cart = st.columns([1.6, 1.4])
 
     with col_menu:
-        st.subheader("📋 Danh Sách Món")
+        st.subheader("📋 Thực Đơn Món")
         tab1, tab2, tab3 = st.tabs(["☕ Cà Phê Mini", "🍵 Trà & Mát Lạnh", "🥐 Bánh Ngọt"])
 
         def show_items(item_list):
             cols = st.columns(2)
             for i, item in enumerate(item_list):
                 with cols[i % 2]:
-                    st.image(item["img"], use_container_width=True)
+                    try:
+                        st.image(item["img"])
+                    except Exception:
+                        pass
                     st.markdown(f"**{item['name']}**")
                     st.caption(item["desc"])
-                    st.markdown(f"💰 <span style='color:red; font-weight:bold;'>{item['price']:,.0f} VNĐ</span>", unsafe_allow_html=True)
+                    st.markdown(f"💰 **{item['price']:,.0f} VNĐ**")
 
-                    with st.expander(f"➕ Thêm {item['name']}"):
-                        sugar = st.select_slider("Đường / Sữa:", ["0%", "30%", "50%", "100%"], value="50%", key=f"sugar_{item['id']}")
-                        ice = st.select_slider("Đá:", ["Không đá", "Ít đá", "Vừa", "Nhiều đá"], value="Vừa", key=f"ice_{item['id']}")
-                        topping = st.multiselect("Topping:", ["Kem Muối (+8k)", "Kem Trừng (+10k)", "Shot Espresso (+10k)"], key=f"top_{item['id']}")
+                    with st.expander(f"➕ Chọn {item['name']}"):
+                        sugar = st.select_slider("Mức Đường / Sữa:", ["0%", "30%", "50%", "100%"], value="50%", key=f"sug_{item['id']}")
+                        ice = st.select_slider("Mức Đá:", ["Không đá", "Ít đá", "Vừa", "Nhiều đá"], value="Vừa", key=f"ice_{item['id']}")
+                        topping = st.multiselect("Topping:", ["Kem Muối (+8k)", "Kem Trứng (+10k)", "Shot Espresso (+10k)"], key=f"top_{item['id']}")
                         qty = st.number_input("Số lượng:", min_value=1, value=1, key=f"qty_{item['id']}")
 
-                        if st.button("🛒 Thêm Vào Giỏ", key=f"btn_add_{item['id']}", type="primary", use_container_width=True):
+                        if st.button("🛒 Thêm Vào Giỏ", key=f"btn_add_{item['id']}"):
                             add_price = 0
                             if "Kem Muối (+8k)" in topping: add_price += 8000
-                            if "Kem Trừng (+10k)" in topping: add_price += 10000
+                            if "Kem Trứng (+10k)" in topping: add_price += 10000
                             if "Shot Espresso (+10k)" in topping: add_price += 10000
 
                             cart_item = {
@@ -185,7 +286,7 @@ if menu_choice == "🛒 Gọi Món POS":
                                 "total": (item["price"] + add_price) * qty
                             }
                             st.session_state.cart.append(cart_item)
-                            st.success(f"Đã thêm {qty}x {item['name']}!")
+                            safe_toast(f"Đã thêm {qty}x {item['name']}!")
 
         with tab1: show_items(MENU_DATA["☕ Cà Phê Chữ Ký"])
         with tab2: show_items(MENU_DATA["🍵 Trà & Đồ Uống Mát Lạnh"])
@@ -195,12 +296,30 @@ if menu_choice == "🛒 Gọi Món POS":
         st.subheader("🛒 Giỏ Hàng & Thanh Toán")
         c1, c2 = st.columns(2)
         with c1: order_type = st.selectbox("Hình thức:", ["Tại bàn", "Mang đi"])
-        with c2: table_num = st.text_input("Bàn/Số phòng:", value="Bàn 01")
+        with c2: 
+            table_options = list(st.session_state.table_status.keys())
+            table_num = st.selectbox("Chọn Bàn:", table_options)
 
-        phone = st.text_input("📞 SĐT Tích Điểm Khách Hàng:", placeholder="Nhập SĐT...")
+        phone = st.text_input("📞 SĐT Khách Hàng (Tích Điểm):", placeholder="Nhập SĐT khách hàng...")
         if phone:
             p = get_pts(phone)
             st.info(f"👤 Điểm tích lũy: **{p} điểm** (Quy đổi: {p*1000:,.0f}đ)")
+
+        st.markdown("---")
+        c_v1, c_v2 = st.columns([2, 1])
+        with c_v1:
+            v_code_input = st.text_input("🏷️ Mã Khuyến Mãi / Voucher:", placeholder="Nhập MINI10, XINCHAO...")
+        with c_v2:
+            st.write("")
+            if st.button("Áp Dụng Mã"):
+                raw_sum = sum(ci["total"] for ci in st.session_state.cart)
+                valid, d_val, msg = check_voucher(v_code_input, raw_sum)
+                if valid:
+                    st.session_state.applied_discount = d_val
+                    st.session_state.discount_reason = f"Voucher {v_code_input.upper()}"
+                    st.success(msg)
+                else:
+                    st.error(msg)
 
         st.markdown("---")
 
@@ -231,42 +350,47 @@ if menu_choice == "🛒 Gọi Món POS":
 
             st.write(f"• Tạm tính: **{raw_total:,.0f} VNĐ**")
             if disc > 0:
-                st.write(f"• Giảm giá: **-{disc:,.0f} VNĐ**")
-            st.markdown(f"### 💸 Tổng Cần Thanh Toán: <span style='color:red;'>{final_total:,.0f} VNĐ</span>", unsafe_allow_html=True)
+                st.write(f"• Ưu đãi ({st.session_state.discount_reason}): **-{disc:,.0f} VNĐ**")
+            st.markdown(f"### 💸 Tổng Thanh Toán: **{final_total:,.0f} VNĐ**")
 
-            pay_method = st.radio("Phương thức thanh toán:", ["Tiền mặt 💵", "Chuyển khoản VietQR 📲", "Thẻ 💳"])
+            pay_method = st.radio("Phương thức thanh toán:", ["Tiền mặt 💵", "Chuyển khoản VietQR 📲", "Thẻ ngân hàng 💳"])
 
             if pay_method == "Chuyển khoản VietQR 📲":
-                st.image("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=COFFEEMINI", caption="Mã QR Thanh Toán VietQR")
+                try:
+                    st.image("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=COFFEEMINI_POS_PAYMENT", caption="Mã QR Thanh Toán VietQR")
+                except Exception:
+                    st.warning("Không thể tải ảnh VietQR.")
 
-            if st.button("✅ HOÀN TẤT THANH TOÁN", type="primary", use_container_width=True):
+            if st.button("✅ HOÀN TẤT THANH TOÁN & IN HÓA ĐƠN"):
                 if save_order(phone, f"{order_type} ({table_num})", st.session_state.cart, raw_total, disc, final_total, pay_method):
-                    st.balloons()
+                    if order_type == "Tại bàn":
+                        st.session_state.table_status[table_num] = "Có Khách 🔴"
+
+                    if hasattr(st, "balloons"):
+                        st.balloons()
                     st.success("🎉 Thanh toán thành công!")
                     st.session_state.cart = []
                     st.session_state.applied_discount = 0
+                    st.session_state.discount_reason = ""
                     safe_rerun()
 
-elif menu_choice == "🎰 Vòng Quay May Mắn":
-    st.subheader("🎰 Vòng Quay Trúng Thưởng Voucher 100%")
-    prizes = [("Giảm 10.000 VNĐ", 10000), ("Giảm 15.000 VNĐ", 15000), ("Tặng Shot Kem Muối", 8000), ("Chúc may mắn lần sau", 0)]
-    if st.button("🔄 THỬ VẬN MAY", type="primary"):
-        p, v = random.choice(prizes)
-        st.session_state.applied_discount = v
-        st.success(f"🎁 Bạn trúng: **{p}**! Đã áp dụng giảm giá vào giỏ hàng.")
+elif menu_choice == "🪑 Sơ Đồ & Quản Lý Bàn":
+    st.subheader("🪑 Sơ Đồ Bàn Thực Tế & Trạng Thái Sức Chứa")
+    col_t1, col_t2 = st.columns([2, 1])
 
-elif menu_choice == "👤 Tích Điểm Khách Hàng":
-    st.subheader("👤 Tra Cứu Điểm Tích Lũy")
-    s_phone = st.text_input("Nhập SĐT Khách Hàng:")
-    if s_phone:
-        pts = get_pts(s_phone)
-        st.metric(f"Khách hàng {s_phone}", f"{pts} Điểm")
+    with col_t1:
+        st.markdown("### 📌 Trạng Thái Các Bàn")
+        t_cols = st.columns(5)
+        for idx, (t_name, t_stat) in enumerate(st.session_state.table_status.items()):
+            with t_cols[idx % 5]:
+                st.markdown(f"**{t_name}**")
+                st.caption(t_stat)
 
-else:
-    st.subheader("📈 Báo Cáo Doanh Thu Bán Hàng")
-    df = load_orders()
-    if df.empty:
-        st.warning("Chưa có dữ liệu đơn hàng.")
-    else:
-        st.metric("💰 Tổng Doanh Thu", f"{df['final_amount'].sum():,.0f} VNĐ")
-        st.dataframe(df, use_container_width=True)
+    with col_t2:
+        st.markdown("### ⚙️ Thao Tác Nhanh")
+        sel_table = st.selectbox("Chọn Bàn Cần Thay Đổi:", list(st.session_state.table_status.keys()))
+        new_stat = st.radio("Đổi Trạng Thái:", ["Trống 🟢", "Có Khách 🔴", "Đã Đặt 🟡"])
+        if st.button("🔄 Cập Nhật Trạng Thái Bàn"):
+            st.session_state.table_status[sel_table] = new_stat
+            safe_toast(f"Đã đổi {sel_table} thành '{new_stat}'!")
+            safe_rerun()
