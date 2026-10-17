@@ -369,7 +369,7 @@ PRIZES = [
 ]
 
 MUSIC_PLAYLIST = {
-    "🎷 Jazz Vintage Mùa Thu": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    "🎷 Jazz Vintage Mùa Thu": "file:///D:/Relax%20And%20Unwind%20In%20A%20Vintage%20Cafe%20With%20Smooth%20Jazz%20-%205%20Minute%20Calming%20Break.mp3",
     "☕ Lofi Cafe Chill": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
     "🍁 Autumn Piano Melodies": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3"
 }
