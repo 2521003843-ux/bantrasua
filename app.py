@@ -111,8 +111,3 @@ st.markdown("""
         font-weight: bold;
     }
 
-    /* Nút bấm chuyển màu Starbucks Green */
-    .stButton>button {
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-    }
