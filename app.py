@@ -5,11 +5,20 @@ from datetime import datetime
 import json
 import random
 
+import ast
+
+app_code = '''import streamlit as st
+import pandas as pd
+import sqlite3
+from datetime import datetime
+import json
+import random
+
 # =========================================================
-# 1. CẤU HÌNH TRANG (BẮT BUỘC ĐẶT TRÊN CÙNG TRƯỚC MỌI LỆNH ST)
+# 1. CẤU HÌNH TRANG & THEME COFFEE MINI ☕✨
 # =========================================================
 st.set_page_config(
-    page_title="Phin Việt Coffee - Cà Phê Đất Việt ☕",
+    page_title="COFFEE MINI - Cà Phê Nhỏ, Niềm Vui Lớn ☕",
     page_icon="☕",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -31,9 +40,9 @@ def safe_toast(msg, icon="☕"):
         st.success(f"{icon} {msg}")
 
 # =========================================================
-# 3. KHỞI TẠO VÀ THAO TÁC CƠ SỞ DỮ LIỆU SQLITE (AN TOÀN)
+# 3. KHỞI TẠO CƠ SỞ DỮ LIỆU SQLITE
 # =========================================================
-DB_FILE = "viet_coffee_pos.db"
+DB_FILE = "coffee_mini_pos.db"
 
 def get_db_connection():
     return sqlite3.connect(DB_FILE, timeout=15)
@@ -65,7 +74,7 @@ def init_db():
         conn.commit()
         conn.close()
     except Exception as e:
-        print("Lỗi khởi tạo CSDL:", e)
+        print("Lỗi CSDL:", e)
 
 init_db()
 
@@ -91,7 +100,7 @@ def save_order_to_db(phone, order_type, items, total, discount, final, pay_metho
         conn.close()
         return True
     except Exception as e:
-        st.error(f"Lỗi khi lưu đơn hàng vào CSDL: {e}")
+        st.error(f"Lỗi khi lưu đơn hàng: {e}")
         return False
 
 def get_customer_points(phone):
@@ -117,7 +126,7 @@ def load_orders_history():
         return pd.DataFrame()
 
 # =========================================================
-# 4. GIAO DIỆN & CSS PHIN VIỆT COFFEE
+# 4. GIAO DIỆN & CSS TRANG TRÍ TỐI GIẢN - COFFEE MINI
 # =========================================================
 st.markdown("""
     <style>
@@ -128,64 +137,77 @@ st.markdown("""
     }
 
     .stApp {
-        background-color: #FDFBF7;
+        background-color: #FAF7F2;
     }
 
-    .coffee-banner {
-        background: linear-gradient(135deg, #2C1A1D 0%, #4A2810 50%, #8C4A27 100%);
+    /* BANNER COFFEE MINI */
+    .mini-banner {
+        background: linear-gradient(135deg, #4A3525 0%, #6F4E37 50%, #A67B5B 100%);
         border-radius: 20px;
-        padding: 30px 20px;
-        color: #FFF8E1;
+        padding: 28px 20px;
+        color: #FFFDF9;
         text-align: center;
-        box-shadow: 0 10px 25px rgba(44, 26, 29, 0.3);
+        box-shadow: 0 10px 25px rgba(74, 53, 37, 0.2);
         margin-bottom: 25px;
-        border: 2px solid #D97706;
+        border: 2px solid #ECB176;
     }
     
-    .coffee-banner h1 {
-        color: #FBBF24 !important;
+    .mini-banner h1 {
+        color: #FED8B1 !important;
         font-size: 2.5rem;
         font-weight: 800;
-        margin-bottom: 8px;
-        text-shadow: 2px 2px 6px rgba(0,0,0,0.6);
+        margin-bottom: 6px;
+        letter-spacing: 1px;
     }
     
-    .coffee-banner p {
-        color: #F3E8DC;
+    .mini-banner p {
+        color: #F6E6D9;
         font-size: 1.1rem;
         margin: 0;
         font-weight: 500;
     }
 
+    /* CARD MÓN ĂN VỚI HÌNH ẢNH MÔ TẢ */
     .product-card {
         background-color: #FFFFFF;
         border-radius: 16px;
-        padding: 18px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        border: 1.5px solid #E5D5C5;
+        padding: 14px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+        border: 1px solid #E8DCD0;
         text-align: center;
         margin-bottom: 15px;
+        transition: transform 0.2s;
     }
 
-    .product-card h4 {
-        color: #2C1A1D;
-        margin-bottom: 5px;
-        font-weight: 700;
-    }
-
-    .product-price {
-        color: #B91C1C;
-        font-size: 1.25rem;
-        font-weight: 800;
+    .product-img {
+        width: 100%;
+        height: 140px;
+        object-fit: cover;
+        border-radius: 12px;
         margin-bottom: 10px;
     }
 
+    .product-card h4 {
+        color: #4A3525;
+        margin-bottom: 4px;
+        font-weight: 700;
+        font-size: 1.05rem;
+    }
+
+    .product-price {
+        color: #C85250;
+        font-size: 1.2rem;
+        font-weight: 800;
+        margin-bottom: 8px;
+    }
+
+    /* KHUNG GIỎ HÀNG */
     .cart-container {
         background-color: #FFFFFF;
         border-radius: 18px;
         padding: 20px;
-        border-top: 6px solid #8C4A27;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+        border-top: 6px solid #6F4E37;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.05);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -195,38 +217,113 @@ if "cart" not in st.session_state:
 if "applied_discount" not in st.session_state:
     st.session_state.applied_discount = 0
 
+# =========================================================
+# 5. THỰC ĐƠN COFFEE MINI CÓ ẢNH MÔ TẢ CHẤT LƯỢNG CAO
+# =========================================================
 MENU_DATA = {
-    "☕ Cà Phê Phin Truyền Thống": [
-        {"id": "CF01", "name": "Cà Phê Sữa Đá Phin", "price": 32000, "img": "☕", "desc": "Cà phê Robusta Buôn Ma Thuột đậm đà pha phin truyền thống với sữa đặc"},
-        {"id": "CF02", "name": "Cà Phê Đen Đá Nguyên Chất", "price": 28000, "img": "☕", "desc": "Đắng thanh, thơm nồng đậm vị đặc trưng của hạt Robusta Tây Nguyên"},
-        {"id": "CF03", "name": "Bạc Xỉu Sài Gòn", "price": 35000, "img": "🥛", "desc": "Hương vị chuẩn Sài Gòn - nhiều sữa thơm ngậy, vị cà phê đắng nhẹ"},
-        {"id": "CF04", "name": "Cà Phê Trứng Hà Nội", "price": 45000, "img": "🥚", "desc": "Lớp kem trứng đánh bông béo ngậy phủ trên cốt cà phê phin nóng"},
-        {"id": "CF05", "name": "Cà Phê Muối Kem Béo", "price": 39000, "img": "🧂", "desc": "Sự kết hợp giữa lớp kem muối mặn nhẹ béo ngậy và vị đắng cà phê"},
-        {"id": "CF06", "name": "Cà Phê Dừa Đá Xay", "price": 42000, "img": "🥥", "desc": "Nước cốt dừa dẻo mịn đá xay kết hợp cùng shot cà phê phin thơm lừng"}
+    "☕ Cà Phê Chữ Ký (Signature Coffee)": [
+        {
+            "id": "CM01", 
+            "name": "Cà Phê Sữa Đá Phin Mini", 
+            "price": 29000, 
+            "img": "https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=500&q=80", 
+            "desc": "Robusta Buôn Ma Thuột đậm đà pha phin giọt đắng thơm lừng quyện sữa đặc"
+        },
+        {
+            "id": "CM02", 
+            "name": "Cà Phê Muối Kem Béo Mini", 
+            "price": 35000, 
+            "img": "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=500&q=80", 
+            "desc": "Lớp kem muối mặn béo ngậy hài hòa tuyệt đối cùng cốt cà phê nguyên chất"
+        },
+        {
+            "id": "CM03", 
+            "name": "Bạc Xỉu Sài Gòn", 
+            "price": 32000, 
+            "img": "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?auto=format&fit=crop&w=500&q=80", 
+            "desc": "Nhiều sữa ngọt thơm thanh mát, chỉ một chút nhấn nhá đắng nhẹ của cà phê"
+        },
+        {
+            "id": "CM04", 
+            "name": "Cà Phê Trứng Béo Mịn", 
+            "price": 39000, 
+            "img": "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=500&q=80", 
+            "desc": "Kem trứng gà tươi đánh bông kem mịn, thơm phức phủ trên cà phê phin nóng"
+        },
+        {
+            "id": "CM05", 
+            "name": "Cà Phê Cốt Dừa Đá Xay", 
+            "price": 38000, 
+            "img": "https://images.unsplash.com/photo-1572442388796-11668a67e53d?auto=format&fit=crop&w=500&q=80", 
+            "desc": "Nước cốt dừa thơm béo dẻo mịn đá xay đượm vị espresso thanh nồng"
+        },
+        {
+            "id": "CM06", 
+            "name": "Cold Brew Cam Sả Tươi", 
+            "price": 42000, 
+            "img": "https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=500&q=80", 
+            "desc": "Cà phê ủ lạnh 16 tiếng kết hợp vị chua ngọt mát lành từ cam tươi và sả"
+        }
     ],
-    "🌿 Trà Việt & Giải Nhiệt": [
-        {"id": "TR01", "name": "Trà Sen Vàng Củ Năng", "price": 45000, "img": "🍵", "desc": "Trà Oolong thanh mát kết hợp hạt sen bùi ngậy và củ năng giòn ngọt"},
-        {"id": "TR02", "name": "Trà Đào Cam Sả Tươi", "price": 39000, "img": "🍑", "desc": "Đào miếng giòn rụm, vị thơm đượm nồng của sả tươi và cam sành"},
-        {"id": "TR03", "name": "Trà Quất Mật Ong Tắc", "price": 32000, "img": "🍋", "desc": "Vị chua dịu lành từ quả tắc tươi hòa quyện mật ong rừng"}
+    "🍵 Trà & Đồ Uống Mát Lạnh": [
+        {
+            "id": "TR01", 
+            "name": "Trà Đào Cam Sả Tươi", 
+            "price": 35000, 
+            "img": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=500&q=80", 
+            "desc": "Đào miếng giòn rụm, hương thơm đượm sả tươi cùng vị chua ngọt mát dịu"
+        },
+        {
+            "id": "TR02", 
+            "name": "Trà Sen Vàng Hạt Sen", 
+            "price": 39000, 
+            "img": "https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=500&q=80", 
+            "desc": "Trà Oolong thanh khiết kết hợp hạt sen bùi ngọt và lớp kem mặn béo ngậy"
+        },
+        {
+            "id": "TR03", 
+            "name": "Matcha Latte Nhật Bản", 
+            "price": 42000, 
+            "img": "https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=500&q=80", 
+            "desc": "Bột trà xanh Matcha Uji cao cấp pha cùng sữa tươi thơm mịn đậm đà"
+        }
     ],
-    "🍰 Bánh Đi Kèm Cà Phê": [
-        {"id": "BN01", "name": "Bánh Mì Chà Bông Trứng Muối", "price": 35000, "img": "🧁", "desc": "Sốt phô mai tan chảy kết hợp chà bông gà và trứng muối đậm đà"},
-        {"id": "BN02", "name": "Bánh Mì Chuối Nướng Bơ", "price": 28000, "img": "🍌", "desc": "Bánh mì chuối thơm lừng mùi bơ tươi, vỏ giòn ruột mềm dẻo"},
-        {"id": "BN03", "name": "Bánh Bông Lan Phô Mai Cà Phê", "price": 35000, "img": "🍰", "desc": "Bánh mềm mịn thơm đượm hương cà phê đắng nhẹ và phô mai"}
+    "🥐 Bánh Ngọt Nhỏ & Snack Mini": [
+        {
+            "id": "BN01", 
+            "name": "Bánh Mì Chuối Nướng Bơ", 
+            "price": 25000, 
+            "img": "https://images.unsplash.com/photo-1603532648955-039310d9ed75?auto=format&fit=crop&w=500&q=80", 
+            "desc": "Bánh mì chuối nướng mềm xốp thơm lừng vị bơ Pháp nhẹ nhàng"
+        },
+        {
+            "id": "BN02", 
+            "name": "Croissant Bơ Tỏi Nóng Giòn", 
+            "price": 28000, 
+            "img": "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=500&q=80", 
+            "desc": "Bánh sừng bò ngàn lớp nướng nóng giòn tan thơm đượm vị bơ tỏi"
+        },
+        {
+            "id": "BN03", 
+            "name": "Bánh Bông Lan Trứng Muối Mini", 
+            "price": 30000, 
+            "img": "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=500&q=80", 
+            "desc": "Sốt phô mai béo ngậy tan chảy cùng chà bông và trứng muối mặn bùi"
+        }
     ]
 }
 
 # Sidebar điều hướng
 with st.sidebar:
-    st.markdown("<h1 style='text-align: center; color: #8C4A27;'>☕ PHIN VIỆT</h1>", unsafe_allow_html=True)
-    st.caption("<p style='text-align: center;'>Cà Phê Đất Việt Nguyên Bản</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #6F4E37;'>☕ COFFEE MINI</h1>", unsafe_allow_html=True)
+    st.caption("<p style='text-align: center;'>Góc Nhỏ Cà Phê & Niềm Vui Lớn</p>", unsafe_allow_html=True)
     st.markdown("---")
     
     sidebar_menu = st.radio(
         "📌 Menu Chức Năng:",
         [
             "🛒 Gọi Món POS & Giỏ Hàng",
-            "🎰 Vòng Quay May Mắn Cà Phê",
+            "🎰 Vòng Quay May Mắn Mini",
             "👤 Tích Điểm Khách Hàng",
             "📈 Báo Cáo Doanh Thu Real-Time"
         ]
@@ -234,9 +331,9 @@ with st.sidebar:
 
 # Banner chính
 st.markdown("""
-    <div class="coffee-banner">
-        <h1>☕ PHIN VIỆT COFFEE - ĐẬM VỊ ĐẤT VIỆT 🇻🇳</h1>
-        <p>"Thưởng Thức Hương Vị Cà Phê Nguyên Bản Từ Đồi Núi Tây Nguyên"</p>
+    <div class="mini-banner">
+        <h1>☕ COFFEE MINI - SMALL SIZE, BIG SMILE ☕</h1>
+        <p>"Không Gian Tối Giản - Thưởng Thức Cà Phê Chất Lượng Mỗi Ngày"</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -247,9 +344,9 @@ if sidebar_menu == "🛒 Gọi Món POS & Giỏ Hàng":
     col_pos, col_cart = st.columns([1.7, 1.3])
 
     with col_pos:
-        st.subheader("📋 Thực Đơn Cà Phê & Đồ Uống")
+        st.subheader("📋 Thực Đơn Đồ Uống & Bánh Ngọt")
         
-        tab1, tab2, tab3 = st.tabs(["☕ Cà Phê Phin", "🌿 Trà Việt", "🍰 Bánh Đi Kèm"])
+        tab1, tab2, tab3 = st.tabs(["☕ Cà Phê Mini", "🍵 Trà & Mát Lạnh", "🥐 Bánh Ngọt"])
         
         def render_category(items):
             cols = st.columns(2)
@@ -257,18 +354,18 @@ if sidebar_menu == "🛒 Gọi Món POS & Giỏ Hàng":
                 with cols[idx % 2]:
                     st.markdown(f"""
                         <div class="product-card">
-                            <div style="font-size: 2.5rem;">{item['img']}</div>
+                            <img src="{item['img']}" class="product-img" alt="{item['name']}">
                             <h4>{item['name']}</h4>
-                            <p style="color:#666; font-size:0.85rem; height: 38px;">{item['desc']}</p>
+                            <p style="color:#666; font-size:0.82rem; min-height: 36px; margin-bottom:8px;">{item['desc']}</p>
                             <div class="product-price">{item['price']:,.0f} VNĐ</div>
                         </div>
                     """, unsafe_allow_html=True)
                     
                     with st.expander(f"➕ Custom & Chọn Món ({item['name']})"):
-                        sugar = st.select_slider("Mức ngọt / Sữa đặc:", options=["0% (Đắng)", "30% (Ít ngọt)", "50% (Vừa)", "100% (Đậm ngọt)"], value="50% (Vừa)", key=f"s_{item['id']}")
+                        sugar = st.select_slider("Mức ngọt / Sữa:", options=["0% (Đắng)", "30% (Ít ngọt)", "50% (Vừa)", "100% (Ngọt đậm)"], value="50% (Vừa)", key=f"s_{item['id']}")
                         ice = st.select_slider("Mức đá:", options=["Không đá", "Ít đá", "Vừa", "Nhiều đá"], value="Vừa", key=f"i_{item['id']}")
-                        bean = st.selectbox("Loại hạt cà phê:", ["Robusta Đậm Đà (Buôn Ma Thuột)", "Arabica Thơm Thanh (Cầu Đất)", "Blend 70/30 Tây Nguyên"], key=f"b_{item['id']}")
-                        topping = st.multiselect("Topping kèm theo:", ["Kem Muối (+8k)", "Kem Trứng (+10k)", "Shot Espresso (+10k)", "Thạch Cà Phê (+5k)"], key=f"t_{item['id']}")
+                        bean = st.selectbox("Hạt cà phê chọn:", ["Robusta Buôn Ma Thuột (Đậm)", "Arabica Cầu Đất (Thơm)", "Blend 70/30 (Đồng Bằng)"], key=f"b_{item['id']}")
+                        topping = st.multiselect("Topping kèm:", ["Kem Muối (+8k)", "Kem Trứng (+10k)", "Shot Espresso (+10k)", "Thạch Cà Phê (+5k)"], key=f"t_{item['id']}")
                         
                         qty = st.number_input("Số lượng:", min_value=1, value=1, step=1, key=f"q_{item['id']}")
                         
@@ -291,35 +388,35 @@ if sidebar_menu == "🛒 Gọi Món POS & Giỏ Hàng":
                                 "total": (item["price"] + topping_price) * qty
                             }
                             st.session_state.cart.append(cart_item)
-                            safe_toast(f"Đã thêm {qty}x {item['name']} vào giỏ hàng!", icon="☕")
+                            safe_toast(f"Đã thêm {qty}x {item['name']} vào giỏ!", icon="☕")
 
         with tab1:
-            render_category(MENU_DATA["☕ Cà Phê Phin Truyền Thống"])
+            render_category(MENU_DATA["☕ Cà Phê Chữ Ký (Signature Coffee)"])
         with tab2:
-            render_category(MENU_DATA["🌿 Trà Việt & Giải Nhiệt"])
+            render_category(MENU_DATA["🍵 Trà & Đồ Uống Mát Lạnh"])
         with tab3:
-            render_category(MENU_DATA["🍰 Bánh Đi Kèm Cà Phê"])
+            render_category(MENU_DATA["🥐 Bánh Ngọt Nhỏ & Snack Mini"])
 
     # CỘT GIỎ HÀNG & THANH TOÁN
     with col_cart:
         st.markdown("<div class='cart-container'>", unsafe_allow_html=True)
-        st.markdown("### 🛒 Hóa Đơn & Giỏ Hàng POS")
+        st.markdown("### 🛒 Hóa Đơn POS & Giỏ Hàng")
         
         c_p1, c_p2 = st.columns(2)
         with c_p1:
             order_type = st.selectbox("Hình thức:", ["Tại bàn (In-house)", "Mang đi (Takeaway)"])
         with c_p2:
-            table_num = st.text_input("Số bàn / Tên khách:", value="Bàn 01")
+            table_num = st.text_input("Bàn / Tên khách:", value="Bàn 01")
 
-        cust_phone = st.text_input("📞 SĐT Khách Hàng (Tích Điểm):", placeholder="Nhập SĐT để tích điểm...")
+        cust_phone = st.text_input("📞 SĐT Khách Hàng (Tích Điểm):", placeholder="Nhập SĐT khách...")
         if cust_phone:
             pts = get_customer_points(cust_phone)
-            st.info(f"👤 Khách hàng thân thiết | Điểm tích lũy: **{pts} điểm** (Giá trị quy đổi: {pts*1000:,.0f}đ)")
+            st.info(f"👤 Khách hàng | Điểm tích lũy: **{pts} điểm** (Quy đổi: {pts*1000:,.0f}đ)")
 
         st.markdown("---")
 
         if not st.session_state.cart:
-            st.warning("Giỏ hàng hiện tại đang trống. Vui lòng chọn món từ menu bên trái!")
+            st.warning("Giỏ hàng đang trống. Hãy chọn món từ menu bên trái!")
             raw_total = 0
         else:
             raw_total = 0
@@ -348,36 +445,36 @@ if sidebar_menu == "🛒 Gọi Món POS & Giỏ Hàng":
             st.write(f"• Tạm tính: **{raw_total:,.0f} VNĐ**")
             if discount_amount > 0:
                 st.write(f"• Giảm giá Voucher / Vòng quay: <span style='color:green;'>- {discount_amount:,.0f} VNĐ</span>", unsafe_allow_html=True)
-            st.markdown(f"### 💸 Tổng Thanh Toán: <span style='color:#B91C1C;'>{final_total:,.0f} VNĐ</span>", unsafe_allow_html=True)
+            st.markdown(f"### 💸 Tổng Thanh Toán: <span style='color:#C85250;'>{final_total:,.0f} VNĐ</span>", unsafe_allow_html=True)
 
             pay_method = st.radio("Phương thức thanh toán:", ["Tiền mặt 💵", "Chuyển khoản VietQR 📲", "Thẻ ngân hàng 💳"])
 
             if pay_method == "Chuyển khoản VietQR 📲":
-                st.image("https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=PHINVIETCOFFEE_PAYMENT", caption="Quét mã VietQR để thanh toán")
+                st.image("https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=COFFEEMINI_PAYMENT", caption="Quét mã VietQR thanh toán")
 
             if st.button("✅ XÁC NHẬN THANH TOÁN & IN HÓA ĐƠN", type="primary", use_container_width=True):
                 success = save_order_to_db(cust_phone, f"{order_type} ({table_num})", st.session_state.cart, raw_total, discount_amount, final_total, pay_method)
                 if success:
                     if hasattr(st, "balloons"):
                         st.balloons()
-                    st.success("🎉 Thanh toán thành công! Đơn hàng đã được lưu vào CSDL SQLite vĩnh viễn.")
+                    st.success("🎉 Thanh toán thành công! Đơn hàng đã được lưu vào CSDL.")
                     st.session_state.cart = []
                     st.session_state.applied_discount = 0
                     safe_rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# MENU 2: VÒNG QUAY MAY MẮN CÀ PHÊ
+# MENU 2: VÒNG QUAY MAY MẮN MINI
 # ---------------------------------------------------------
-elif sidebar_menu == "🎰 Vòng Quay May Mắn Cà Phê":
-    st.subheader("🎰 Vòng Quay May Mắn Cà Phê - Trúng Thưởng 100%")
-    st.caption("Mỗi hóa đơn tại Phin Việt Coffee đều nhận được 1 lượt quay trúng Voucher hấp dẫn!")
+elif sidebar_menu == "🎰 Vòng Quay May Mắn Mini":
+    st.subheader("🎰 Vòng Quay May Mắn Coffee Mini - Trúng Thưởng 100%")
+    st.caption("Mỗi hóa đơn tại Coffee Mini đều nhận được 1 lượt quay nhận Voucher ưu đãi!")
 
     prizes = [
         ("🎉 Voucher Giảm 10.000 VNĐ", 10000),
-        ("🔥 Voucher Giảm 20.000 VNĐ", 20000),
+        ("🔥 Voucher Giảm 15.000 VNĐ", 15000),
         ("☕ Tặng 01 Shot Espresso Kem Muối", 10000),
-        ("🍌 Tặng 01 Bánh Mì Chuối Nướng Bơ", 28000),
+        ("🥐 Tặng 01 Bánh Mì Chuối Nướng", 25000),
         ("🍀 Chúc bạn may mắn lần sau", 0)
     ]
 
@@ -395,7 +492,7 @@ elif sidebar_menu == "🎰 Vòng Quay May Mắn Cà Phê":
         if "won_prize" in st.session_state:
             st.success(f"🎁 Kết Quả: **{st.session_state.won_prize}**")
             if st.session_state.won_val > 0:
-                st.info(f"Đã tự động áp dụng ưu đãi **-{st.session_state.won_val:,.0f} VNĐ** vào giỏ hàng POS!")
+                st.info(f"Đã tự động áp dụng giảm **-{st.session_state.won_val:,.0f} VNĐ** vào giỏ hàng POS!")
 
 # ---------------------------------------------------------
 # MENU 3: TÍCH ĐIỂM KHÁCH HÀNG
@@ -433,3 +530,7 @@ else:
 
         st.markdown("### 📜 Lịch Sử Giao Dịch Đơn Hàng")
         st.dataframe(df_orders, use_container_width=True, hide_index=True)
+'''
+
+ast.parse(app_code)
+print("Coffee Mini app code parsed successfully!")
